@@ -1,0 +1,66 @@
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #f7f9fb;
+    padding: 40px;
+    margin: 0;
+}
+.container {
+    background: #fff;
+    padding: 30px;
+    border-radius: 10px;
+    max-width: 800px;
+    margin: auto;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+h2 {
+    color: #333;
+    margin-bottom: 20px;
+}
+label, input, select, textarea {
+    display: block;
+    width: 100%;
+    margin-bottom: 15px;
+    font-size: 16px;
+}
+input, select, textarea {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+}
+button {
+    padding: 12px 25px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+button:hover {
+    background-color: #218838;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 25px;
+}
+table, th, td {
+    border: 1px solid #ccc;
+}
+th, td {
+    padding: 12px;
+    text-align: left;
+}
+.status-pending { color: orange; font-weight: bold; }
+.status-approved { color: green; font-weight: bold; }
+.status-declined { color: red; font-weight: bold; }
+a {
+    color: #007bff;
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
+}
+.logout {
+    text-align: right;
+    margin-bottom: 10px;
+}

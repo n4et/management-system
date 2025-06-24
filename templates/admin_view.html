@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center">
+    <h2>Admin Dashboard</h2>
+    <a href="/logout" class="btn btn-outline-danger">Logout</a>
+  </div>
+
+  <h4 class="mt-4">All Leave Requests</h4>
+  <table class="table table-bordered table-hover mt-2">
+    <thead>
+      <tr>
+        <th>Staff Name</th><th>Start</th><th>End</th><th>Reason</th><th>Status</th><th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for req in requests %}
+      <tr>
+        <td>{{ users[req.staff_id] }}</td>
+        <td>{{ req.start_date }}</td>
+        <td>{{ req.end_date }}</td>
+        <td>{{ req.reason }}</td>
+        <td>
+          <span class="badge bg-{{ 'warning' if req.status == 'Pending' else 'success' if req.status == 'Approved' else 'danger' }}">
+            {{ req.status }}
+          </span>
+        </td>
+        <td>
+          {% if req.status == 'Pending' %}
+            <a href="/update-status/{{ req.id }}/approve" class="btn btn-success btn-sm">Approve</a>
+            <a href="/update-status/{{ req.id }}/decline" class="btn btn-danger btn-sm">Decline</a>
+          {% else %}
+            <em>No action</em>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

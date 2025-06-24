@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Staff Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center">
+    <h2>Welcome, {{ user.name }}</h2>
+    <a href="/logout" class="btn btn-outline-danger">Logout</a>
+  </div>
+
+  <!-- Buttons -->
+  <div class="mt-3">
+    <a href="/request-leave" class="btn btn-primary me-2">➕ Request Leave</a>
+    <a href="/request-shift" class="btn btn-secondary">🔁 Request Shift Swap</a>
+  </div>
+
+<!-- Leave Requests -->
+<h4 class="mt-4">Your Leave Requests</h4>
+{% if leaves %}
+<table class="table table-bordered table-striped mt-2">
+  <thead>
+    <tr>
+      <th>Start</th>
+      <th>End</th>
+      <th>Reason</th>
+      <th>Status</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for leave in leaves %}
+    <tr>
+      <td>{{ leave.start_date }}</td>
+      <td>{{ leave.end_date }}</td>
+      <td>{{ leave.reason }}</td>
+      <td>
+        <span class="badge 
+          {% if leave.status == 'Pending' %}bg-warning
+          {% elif leave.status == 'Approved' %}bg-success
+          {% else %}bg-danger
+          {% endif %}">
+          {{ leave.status }}
+        </span>
+      </td>
+      <td>
+        {% if leave.status == 'Pending' %}
+        <a href="/cancel-leave/{{ leave.id }}" class="btn btn-sm btn-outline-danger"
+           onclick="return confirm('Cancel this leave request?')">❌ Cancel</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-muted">No leave requests found.</p>
+{% endif %}
+
+
+
+  <!-- Shift Swap Requests -->
+  <h4 class="mt-5">Your Shift Swap Requests</h4>
+  {% if shifts %}
+  <table class="table table-bordered table-striped mt-2">
+    <thead>
+      <tr><th>Date</th><th>Target Staff</th><th>Reason</th><th>Status</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+      {% for swap in shifts %}
+      <tr>
+        <td>{{ swap.date }}</td>
+        <td>{{ staff_names[swap.target_id] }}</td>
+        <td>{{ swap.reason }}</td>
+        <td>
+          <span class="badge bg-{{ 'warning' if swap.status == 'Pending' else 'success' if swap.status == 'Approved' else 'danger' }}">
+            {{ swap.status }}
+          </span>
+        </td>
+        <td>
+          {% if swap.status == 'Pending' %}
+            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelShiftModal{{ swap.id }}">Cancel</button>
+
+            <!-- Shift Cancel Modal -->
+            <div class="modal fade" id="cancelShiftModal{{ swap.id }}" tabindex="-1" aria-hidden="true">
+              <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title">Cancel Shift Request</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  </div>
+                  <div class="modal-body">
+                    Are you sure you want to cancel this shift swap request?
+                  </div>
+                  <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+                    <a href="/cancel-shift/{{ swap.id }}" class="btn btn-danger">Yes, Cancel</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% else %}
+            <span class="text-muted">-</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="text-muted">No shift swap requests yet.</p>
+  {% endif %}
+
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
