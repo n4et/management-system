@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: leave-management-system
+    env: python
+    buildCommand: ""
+    startCommand: gunicorn app:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: MAIL_USERNAME
+        value: ssupdope88@gmail.com
+      - key: Iloveallah20
+        value: ioqmgpzgogfewiwa

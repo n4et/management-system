@@ -1,19 +1,23 @@
-from flask import Flask, render_template, request, redirect, session
+import os
+from flask import Flask, render_template, request, redirect, session, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = 'secret123'
+app.secret_key = os.environ.get('SECRET_KEY', 'dev_secret')
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 
-# Email settings
+# Email config from environment
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 465
-app.config['MAIL_USERNAME'] = 'ssupdope88@gmail.com'  # update
-app.config['MAIL_PASSWORD'] = 'xcfcgfqjysnwymue'     # update
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_USE_TLS'] = False
 app.config['MAIL_USE_SSL'] = True
 
+# Initialize extensions
 db = SQLAlchemy(app)
 mail = Mail(app)
 
@@ -21,9 +25,9 @@ mail = Mail(app)
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
-    email = db.Column(db.String(100))
+    email = db.Column(db.String(100), unique=True)
     role = db.Column(db.String(10))  # 'admin' or 'staff'
-    password = db.Column(db.String(100))
+    password = db.Column(db.String(200))  # Hashed
 
 class LeaveRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -41,27 +45,29 @@ class ShiftSwap(db.Model):
     reason = db.Column(db.Text)
     status = db.Column(db.String(20), default='Pending')
 
-# Run once
+# Initial DB setup
 with app.app_context():
     db.create_all()
     if not User.query.first():
-        admin = User(name='Admin', email='ssupdope88@gmail.com', role='admin', password='admin123')
-        staff1 = User(name='Ali', email='ali@gmail.com', role='staff', password='ali123')
-        staff2 = User(name='Sara', email='sara@gmail.com', role='staff', password='sara123')
-        db.session.add_all([admin, staff1, staff2])
+        admin1 = User(name='Admin', email='ssupdope88@gmail.com', role='admin', password=generate_password_hash('admin123'))
+        admin2 = User(name='Admin Two', email='norazhar@ums.edu.my', role='admin', password=generate_password_hash('adminpass2'))
+        staff1 = User(name='Ali', email='ali@gmail.com', role='staff', password=generate_password_hash('ali123'))
+        staff2 = User(name='Sara', email='sara@gmail.com', role='staff', password=generate_password_hash('sara123'))
+        db.session.add_all([admin1, admin2, staff1, staff2])
         db.session.commit()
 
 # === ROUTES ===
-
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        user = User.query.filter_by(email=request.form['email'], password=request.form['password']).first()
-        if user:
+        email = request.form['email']
+        password = request.form['password']
+        user = User.query.filter_by(email=email).first()
+        if user and check_password_hash(user.password, password):
             session['user_id'] = user.id
             session['role'] = user.role
             return redirect('/dashboard')
-        return "Login Failed"
+        flash("Login failed. Please check your credentials.")
     return render_template('login.html')
 
 @app.route('/logout')
@@ -71,8 +77,10 @@ def logout():
 
 @app.route('/dashboard')
 def dashboard():
+    if 'user_id' not in session:
+        return redirect('/')
     user = User.query.get(session['user_id'])
-    if session['role'] == 'staff':
+    if user.role == 'staff':
         leaves = LeaveRequest.query.filter_by(staff_id=user.id).all()
         shifts = ShiftSwap.query.filter_by(requester_id=user.id).all()
         staff_names = {u.id: u.name for u in User.query.filter_by(role='staff')}
@@ -81,7 +89,6 @@ def dashboard():
         requests = LeaveRequest.query.all()
         users = {u.id: u.name for u in User.query.all()}
         return render_template('admin_view.html', requests=requests, users=users)
-
 
 @app.route('/request-leave', methods=['GET', 'POST'])
 def request_leave():
@@ -95,9 +102,9 @@ def request_leave():
         db.session.add(leave)
         db.session.commit()
 
-        # Notify admin
         admin = User.query.filter_by(role='admin').first()
         staff = User.query.get(session['user_id'])
+
         msg = Message("New Leave Request", sender=app.config['MAIL_USERNAME'], recipients=[admin.email])
         msg.body = f"""
         Staff: {staff.name}
@@ -106,7 +113,11 @@ def request_leave():
         To: {leave.end_date}
         Reason: {leave.reason}
         """
-        mail.send(msg)
+        try:
+            mail.send(msg)
+        except Exception as e:
+            print("Failed to send email:", e)
+
         return redirect('/dashboard')
     return render_template('leave_form.html')
 
@@ -141,13 +152,43 @@ def cancel_shift(id):
         db.session.commit()
     return redirect('/dashboard')
 
-
 @app.route('/update-status/<int:id>/<action>')
 def update_status(id, action):
     leave = LeaveRequest.query.get(id)
     leave.status = 'Approved' if action == 'approve' else 'Declined'
     db.session.commit()
     return redirect('/dashboard')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        name = request.form['name']
+        email = request.form['email']
+        password = request.form['password']
+
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered.')
+            return redirect('/register')
+
+        new_user = User(
+            name=name,
+            email=email,
+            role='staff',
+            password=generate_password_hash(password)
+        )
+        db.session.add(new_user)
+        db.session.commit()
+
+        msg = Message("Registration Successful", sender=app.config['MAIL_USERNAME'], recipients=[email])
+        msg.body = f"Hi {name},\n\nThank you for registering. You can now log in to the staff dashboard."
+        try:
+            mail.send(msg)
+        except Exception as e:
+            print("Failed to send registration email:", e)
+
+        flash('Registration successful! Please check your email.')
+        return redirect('/')
+    return render_template('register.html')
 
 if __name__ == '__main__':
     app.run(debug=True)
