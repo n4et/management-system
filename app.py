@@ -26,8 +26,9 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
     email = db.Column(db.String(100), unique=True)
-    role = db.Column(db.String(10))  # 'admin' or 'staff'
+    role = db.Column(db.String(10))  # 'admin', 'staff', 'felo'
     password = db.Column(db.String(200))  # Hashed
+    approved = db.Column(db.Boolean, default=False)
 
 class LeaveRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -49,10 +50,10 @@ class ShiftSwap(db.Model):
 with app.app_context():
     db.create_all()
     if not User.query.first():
-        admin1 = User(name='Admin', email='ssupdope88@gmail.com', role='admin', password=generate_password_hash('admin123'))
-        admin2 = User(name='Admin Two', email='norazhar@ums.edu.my', role='admin', password=generate_password_hash('adminpass2'))
-        staff1 = User(name='Ali', email='ali@gmail.com', role='staff', password=generate_password_hash('ali123'))
-        staff2 = User(name='Sara', email='sara@gmail.com', role='staff', password=generate_password_hash('sara123'))
+        admin1 = User(name='Admin', email='ssupdope88@gmail.com', role='admin', password=generate_password_hash('admin123'), approved=True)
+        admin2 = User(name='Admin Two', email='norazhar@ums.edu.my', role='admin', password=generate_password_hash('adminpass2'), approved=True)
+        staff1 = User(name='Ali', email='ali@gmail.com', role='staff', password=generate_password_hash('ali123'), approved=True)
+        staff2 = User(name='Sara', email='sara@gmail.com', role='staff', password=generate_password_hash('sara123'), approved=True)
         db.session.add_all([admin1, admin2, staff1, staff2])
         db.session.commit()
 
@@ -63,11 +64,16 @@ def login():
         email = request.form['email']
         password = request.form['password']
         user = User.query.filter_by(email=email).first()
-        if user and check_password_hash(user.password, password):
+        if not user:
+            flash("Email not found.")
+        elif not user.approved:
+            flash("Your account is not approved yet. Please wait for admin approval.")
+        elif user and check_password_hash(user.password, password):
             session['user_id'] = user.id
             session['role'] = user.role
             return redirect('/dashboard')
-        flash("Login failed. Please check your credentials.")
+        else:
+            flash("Incorrect password.")
     return render_template('login.html')
 
 @app.route('/logout')
@@ -80,15 +86,38 @@ def dashboard():
     if 'user_id' not in session:
         return redirect('/')
     user = User.query.get(session['user_id'])
-    if user.role == 'staff':
+    if user.role in ['staff', 'felo']:
         leaves = LeaveRequest.query.filter_by(staff_id=user.id).all()
         shifts = ShiftSwap.query.filter_by(requester_id=user.id).all()
-        staff_names = {u.id: u.name for u in User.query.filter_by(role='staff')}
+        staff_names = {u.id: u.name for u in User.query.filter(User.role.in_(['staff', 'felo']))}
         return render_template('dashboard.html', user=user, leaves=leaves, shifts=shifts, staff_names=staff_names)
     else:
         requests = LeaveRequest.query.all()
         users = {u.id: u.name for u in User.query.all()}
-        return render_template('admin_view.html', requests=requests, users=users)
+        pending_users = User.query.filter_by(approved=False).all()
+        return render_template('admin_view.html', requests=requests, users=users, pending_users=pending_users)
+
+@app.route('/approve-user/<int:user_id>')
+def approve_user(user_id):
+    user = User.query.get_or_404(user_id)
+    user.approved = True
+    db.session.commit()
+    flash(f"Approved {user.name} successfully.")
+    return redirect('/dashboard')
+
+@app.route('/users')
+def user_list():
+    if 'role' not in session or session['role'] != 'admin':
+        return redirect('/')
+    admins = User.query.filter_by(role='admin').all()
+    staff = User.query.filter_by(role='staff').all()
+    felos = User.query.filter_by(role='felo').all()
+    return render_template('user_list.html', admins=admins, staff=staff, felos=felos)
+
+@app.route('/user/<int:user_id>')
+def user_profile(user_id):
+    user = User.query.get_or_404(user_id)
+    return render_template('user_profile.html', user=user)
 
 @app.route('/request-leave', methods=['GET', 'POST'])
 def request_leave():
@@ -133,7 +162,7 @@ def request_shift():
         db.session.add(swap)
         db.session.commit()
         return redirect('/dashboard')
-    staff_list = User.query.filter_by(role='staff').filter(User.id != session['user_id']).all()
+    staff_list = User.query.filter_by(role='felo').filter(User.id != session['user_id']).all()
     return render_template('shift_form.html', staff_list=staff_list)
 
 @app.route('/cancel-leave/<int:id>')
@@ -165,6 +194,7 @@ def register():
         name = request.form['name']
         email = request.form['email']
         password = request.form['password']
+        role = request.form['role']
 
         if User.query.filter_by(email=email).first():
             flash('Email already registered.')
@@ -173,43 +203,42 @@ def register():
         new_user = User(
             name=name,
             email=email,
-            role='staff',
-            password=generate_password_hash(password)
+            role=role,
+            password=generate_password_hash(password),
+            approved=False
         )
         db.session.add(new_user)
         db.session.commit()
 
-        msg = Message("Registration Successful", sender=app.config['MAIL_USERNAME'], recipients=[email])
-        msg.body = f"Hi {name},\n\nThank you for registering. You can now log in to the staff dashboard."
-        try:
-            mail.send(msg)
-        except Exception as e:
-            print("Failed to send registration email:", e)
-
-        flash('Registration successful! Please check your email.')
+        flash('Registration submitted! Please wait for admin approval.')
         return redirect('/')
     return render_template('register.html')
 
-# === Step 2: Create route to list all users grouped by role ===
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        user = User.query.filter_by(email=email).first()
+        
+        print("USER:", user)
+        if user:
+            print("Approved:", user.approved)
+            print("Password Correct:", check_password_hash(user.password, password))
 
-@app.route('/users')
-def user_list():
-    if 'role' not in session or session['role'] != 'admin':
-        return redirect('/')
-    admins = User.query.filter_by(role='admin').all()
-    staff = User.query.filter_by(role='staff').all()
-    felos = User.query.filter_by(role='felo').all()
-    return render_template('user_list.html', admins=admins, staff=staff, felos=felos)
+        if not user:
+            flash("Email not found.")
+        elif not user.approved:
+            flash("Your account is not approved yet. Please wait for admin approval.")
+        elif check_password_hash(user.password, password):
+            session['user_id'] = user.id
+            session['role'] = user.role
+            return redirect('/dashboard')
+        else:
+            flash("Incorrect password.")
+    return render_template('login.html')
 
-# === Step 3: Create route to view individual user profile ===
-
-@app.route('/user/<int:user_id>')
-def user_profile(user_id):
-    user = User.query.get_or_404(user_id)
-    return render_template('user_profile.html', user=user)
 
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
