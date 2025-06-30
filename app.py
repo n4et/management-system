@@ -59,6 +59,10 @@ with app.app_context():
         db.session.add_all([admin1, admin2, staff1, staff2])
         db.session.commit()
 
+with app.app_context():
+    db.drop_all()
+    db.create_all()
+
 # === ROUTES ===
 @app.route('/', methods=['GET', 'POST'])
 def login():
