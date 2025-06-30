@@ -190,6 +190,24 @@ def register():
         return redirect('/')
     return render_template('register.html')
 
+# === Step 2: Create route to list all users grouped by role ===
+
+@app.route('/users')
+def user_list():
+    if 'role' not in session or session['role'] != 'admin':
+        return redirect('/')
+    admins = User.query.filter_by(role='admin').all()
+    staff = User.query.filter_by(role='staff').all()
+    felos = User.query.filter_by(role='felo').all()
+    return render_template('user_list.html', admins=admins, staff=staff, felos=felos)
+
+# === Step 3: Create route to view individual user profile ===
+
+@app.route('/user/<int:user_id>')
+def user_profile(user_id):
+    user = User.query.get_or_404(user_id)
+    return render_template('user_profile.html', user=user)
+
 if __name__ == '__main__':
     import os
     port = int(os.environ.get("PORT", 5000))
