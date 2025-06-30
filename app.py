@@ -48,16 +48,6 @@ class ShiftSwap(db.Model):
     reason = db.Column(db.Text)
     status = db.Column(db.String(20), default='Pending')
 
-# Initial DB setup
-with app.app_context():
-    db.create_all()
-    if not User.query.first():
-        admin1 = User(name='Admin', email='ssupdope88@gmail.com', role='admin', password=generate_password_hash('admin123'), approved=True)
-        admin2 = User(name='Admin Two', email='norazhar@ums.edu.my', role='admin', password=generate_password_hash('adminpass2'), approved=True)
-        staff1 = User(name='Ali', email='ali@gmail.com', role='staff', password=generate_password_hash('ali123'), approved=True)
-        staff2 = User(name='Sara', email='sara@gmail.com', role='staff', password=generate_password_hash('sara123'), approved=True)
-        db.session.add_all([admin1, admin2, staff1, staff2])
-        db.session.commit()
 
 with app.app_context():
     db.drop_all()
@@ -70,11 +60,17 @@ def login():
         email = request.form['email']
         password = request.form['password']
         user = User.query.filter_by(email=email).first()
+        
+        print("USER:", user)
+        if user:
+            print("Approved:", user.approved)
+            print("Password Correct:", check_password_hash(user.password, password))
+
         if not user:
             flash("Email not found.")
         elif not user.approved:
             flash("Your account is not approved yet. Please wait for admin approval.")
-        elif user and check_password_hash(user.password, password):
+        elif check_password_hash(user.password, password):
             session['user_id'] = user.id
             session['role'] = user.role
             return redirect('/dashboard')
@@ -219,30 +215,6 @@ def register():
         flash('Registration submitted! Please wait for admin approval.')
         return redirect('/')
     return render_template('register.html')
-
-@app.route('/', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-        user = User.query.filter_by(email=email).first()
-        
-        print("USER:", user)
-        if user:
-            print("Approved:", user.approved)
-            print("Password Correct:", check_password_hash(user.password, password))
-
-        if not user:
-            flash("Email not found.")
-        elif not user.approved:
-            flash("Your account is not approved yet. Please wait for admin approval.")
-        elif check_password_hash(user.password, password):
-            session['user_id'] = user.id
-            session['role'] = user.role
-            return redirect('/dashboard')
-        else:
-            flash("Incorrect password.")
-    return render_template('login.html')
 
 
 if __name__ == '__main__':
